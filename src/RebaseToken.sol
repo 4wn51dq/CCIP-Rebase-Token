@@ -28,16 +28,22 @@ abstract contract TokenEvents {
 }
 
 contract RebaseToken is ERC20, Ownable, AccessControl, TokenErrors, TokenEvents {
-    uint256 public s_interestRate = 5e10; // 0.000000005 or 0.0000005% is the initial interest rate.
+
     uint256 private constant DECIMALS = 1e18;
+    uint256 public s_interestRate = (5*DECIMALS)/1e8; // 5e8 or 0.000000005 or 0.0000005% is the initial interest rate.
+
     bytes32 private constant MINT_AND_BURN_ROLES = keccak256(abi.encodePacked("MINT_AND_BURN_ROLES"));
+    // bytes32 private constant DEFAULT_ADMIN_ROLE = keccak256(abi.encodePacked("DEFAULT_ADMIN_ROLE"));
 
     mapping(address => uint256) private s_usersInterestRate;
     // the interest rate depends of the time at which the user makes the deposit into the vault.
     mapping(address => uint256) private s_lastUpdatedTimeStampOfUser;
     // this will track the last time the user made a respective action to track their interest rate.
 
-    constructor() ERC20("Rebase Token", "RBT") Ownable (msg.sender) {}
+    constructor() ERC20("Rebase Token", "RBT") Ownable (msg.sender) {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(MINT_AND_BURN_ROLES, msg.sender);
+    }
 
     function setInterestRate(uint256 _newInterestRate) external onlyOwner {
         if (s_interestRate > _newInterestRate) {
