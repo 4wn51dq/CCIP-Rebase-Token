@@ -9,33 +9,56 @@ env:
   FOUNDRY_PROFILE: ci
 
 jobs:
-  check:
+  ci:
     name: Foundry project
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # Checkout repository
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
+      # Install the latest Foundry version
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
+<<<<<<< HEAD
 
       - name: Install dependencies
         run: forge install --no-commit
+=======
+>>>>>>> 316b98c (good test coverage)
 
+      # Install dependencies
+      - name: Install dependencies
+        run: forge install --no-git --silent
+
+      # Print Forge version
       - name: Show Forge version
         run: forge --version
 
+      # Formatting check
       - name: Run Forge fmt
         run: forge fmt --check
+<<<<<<< HEAD
         id: fmt
+=======
+>>>>>>> 316b98c (good test coverage)
 
+      # Build
       - name: Run Forge build
         run: forge build --sizes
+<<<<<<< HEAD
         id: build
 
       - name: Run tests
         run: forge test -vvv
+=======
+
+      # Run tests
+      - name: Run tests
+        run: forge test -vvv
+>>>>>>> 316b98c (good test coverage)

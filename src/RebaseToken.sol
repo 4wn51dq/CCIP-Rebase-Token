@@ -19,20 +19,16 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 * 
 */
 
-abstract contract TokenErrors {
+contract RebaseToken is ERC20, Ownable, AccessControl {
+
     error RebaseToken__InterestRateCanOnlyDecrease(uint256 currentInterestRate, uint256 newInterestRate);
-}
 
-abstract contract TokenEvents {
     event InterestRateSet(uint256 newinterestRate);
-}
-
-contract RebaseToken is ERC20, Ownable, AccessControl, TokenErrors, TokenEvents {
 
     uint256 private constant DECIMALS = 1e18;
     uint256 public s_interestRate = (5*DECIMALS)/1e8; // 5e8 or 0.000000005 or 0.0000005% is the initial interest rate.
 
-    bytes32 private constant MINT_AND_BURN_ROLES = keccak256(abi.encodePacked("MINT_AND_BURN_ROLES"));
+    bytes32 private constant MINT_AND_BURN_ROLE = keccak256(abi.encodePacked("MINT_AND_BURN_ROLE"));
     // bytes32 private constant DEFAULT_ADMIN_ROLE = keccak256(abi.encodePacked("DEFAULT_ADMIN_ROLE"));
 
     mapping(address => uint256) private s_usersInterestRate;
@@ -42,11 +38,11 @@ contract RebaseToken is ERC20, Ownable, AccessControl, TokenErrors, TokenEvents 
 
     constructor() ERC20("Rebase Token", "RBT") Ownable (msg.sender) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(MINT_AND_BURN_ROLES, msg.sender);
+        _grantRole(MINT_AND_BURN_ROLE, msg.sender);
     }
 
     function setInterestRate(uint256 _newInterestRate) external onlyOwner {
-        if (s_interestRate > _newInterestRate) {
+        if (s_interestRate <= _newInterestRate) {
             revert RebaseToken__InterestRateCanOnlyDecrease(s_interestRate, _newInterestRate);
         }
         s_interestRate = _newInterestRate;
@@ -54,12 +50,12 @@ contract RebaseToken is ERC20, Ownable, AccessControl, TokenErrors, TokenEvents 
     }
 
     function grantMintAndBurnRoles(address _account) external onlyOwner {
-        grantRole(MINT_AND_BURN_ROLES, _account);
+        grantRole(MINT_AND_BURN_ROLE, _account);
     }
 
     // when deposit or redeems are done from the vault contract, mint and burn has to be called for the RT.
 
-    function mintRT(address _to, uint256 _amount) external {
+    function mintRT(address _to, uint256 _amount) external onlyRole(MINT_AND_BURN_ROLE){
         _mintAccruedInterest(_to);
         // this function means that user has to be minted any accrued interest everytime they perform action.
         // this minting must be done before new interest rates are given to the user.
@@ -69,7 +65,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl, TokenErrors, TokenEvents 
         // and RTs will be minted to the user accordingly.
     }
 
-    function burnRT(address _from, uint256 _amount) external {
+    function burnRT(address _from, uint256 _amount) external onlyRole(MINT_AND_BURN_ROLE){
         if (_amount == type(uint256).max) {
             _amount = balanceOf(_from);
         }
