@@ -1,17 +1,14 @@
 //SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity ^0.8.20;
 
 import {IRebaseToken} from "./Interfaces/IRT.sol";
 
 contract Vault {
-
-    
-
     event DepositMade(address indexed user, uint256 amouunt);
 
     IRebaseToken private immutable i_rebaseToken;
 
-    constructor (IRebaseToken rebaseToken) {
+    constructor(IRebaseToken rebaseToken) {
         i_rebaseToken = rebaseToken;
     }
 
@@ -28,7 +25,7 @@ contract Vault {
         }
         IRebaseToken(i_rebaseToken).burnRT(msg.sender, _amount);
         (bool success,) = payable(msg.sender).call{value: _amount}("");
-        require (success, "TX unsuccessful");
+        require(success, "TX unsuccessful");
     }
 
     function getRebaseTokenAddress() public view returns (address) {

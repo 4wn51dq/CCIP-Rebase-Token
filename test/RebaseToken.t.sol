@@ -8,9 +8,7 @@ import {IRebaseToken} from "../src/Interfaces/IRT.sol";
 import {Ownable} from "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import {IAccessControl} from "../lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
 
-
 contract RebaseTokenTest is Test {
-
     RebaseToken rebaseToken;
     Vault vault;
 
@@ -31,7 +29,7 @@ contract RebaseTokenTest is Test {
     }
 
     function testLinearDeposit(uint256 amount) public {
-        amount = bound (amount, 1e5, type(uint96).max);
+        amount = bound(amount, 1e5, type(uint96).max);
 
         vm.startPrank(user);
         vm.deal(user, amount);
@@ -49,13 +47,13 @@ contract RebaseTokenTest is Test {
         uint256 finalBalance = rebaseToken.balanceOf(user);
         assertGt(finalBalance, middleBalance);
 
-        assertApproxEqAbs(finalBalance-middleBalance, middleBalance-startBalance, 1);
+        assertApproxEqAbs(finalBalance - middleBalance, middleBalance - startBalance, 1);
 
         vm.stopPrank();
     }
 
     function testRedeemStraightAway(uint256 amount) public {
-        amount = bound (amount, 1e5, type(uint96).max);
+        amount = bound(amount, 1e5, type(uint96).max);
 
         vm.startPrank(user);
         vm.deal(user, amount);
@@ -72,11 +70,11 @@ contract RebaseTokenTest is Test {
     // rather than guessing the amount of rewards in the vault, which is dynamic, we will create a function for that
     function addRewardsToVault(uint256 rewardAmount) public {
         (bool success,) = payable(address(vault)).call{value: rewardAmount}("");
-    } 
+    }
 
-    function testRedeemAfterTimeHasPassed (uint256 depositAmount, uint256 time) public {
-        depositAmount = bound(depositAmount, 1e5 , 10000000 ether );
-        time = bound(time, 5 minutes , 365 days * 40);
+    function testRedeemAfterTimeHasPassed(uint256 depositAmount, uint256 time) public {
+        depositAmount = bound(depositAmount, 1e5, 10000000 ether);
+        time = bound(time, 5 minutes, 365 days * 40);
 
         vm.deal(user, depositAmount);
         vm.prank(user);
@@ -85,7 +83,7 @@ contract RebaseTokenTest is Test {
         vm.warp(block.timestamp + time);
         uint256 balanceAfterSomeTime = rebaseToken.balanceOf(user);
 
-        uint256 _rewardAmount = depositAmount< balanceAfterSomeTime ? balanceAfterSomeTime - depositAmount : 0;
+        uint256 _rewardAmount = depositAmount < balanceAfterSomeTime ? balanceAfterSomeTime - depositAmount : 0;
         vm.deal(owner, _rewardAmount);
         vm.prank(owner);
         addRewardsToVault(_rewardAmount);
@@ -99,8 +97,8 @@ contract RebaseTokenTest is Test {
     }
 
     function testTransfer(uint256 amount, uint256 amountToSend) public {
-        amount = bound(amount, 1e5+1e5, type(uint96).max);
-        amountToSend = bound(amountToSend, 1e5, amount-1e5);
+        amount = bound(amount, 1e5 + 1e5, type(uint96).max);
+        amountToSend = bound(amountToSend, 1e5, amount - 1e5);
 
         vm.deal(user, amount);
         vm.prank(user);
@@ -113,7 +111,7 @@ contract RebaseTokenTest is Test {
 
         vm.prank(owner);
         rebaseToken.setInterestRate(4e10);
-        
+
         vm.prank(user);
         rebaseToken.transfer(user2, amountToSend);
         uint256 userBalanceAfterTransfer = rebaseToken.balanceOf(user);

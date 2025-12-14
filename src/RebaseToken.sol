@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity ^0.8.20;
 
 // #normal_token: the total supply is constant
 // #rebase_token: the total supply changes based on an algorithm to reflect changes in underlying value or rewards
@@ -20,13 +20,12 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 */
 
 contract RebaseToken is ERC20, Ownable, AccessControl {
-
     error RebaseToken__InterestRateCanOnlyDecrease(uint256 currentInterestRate, uint256 newInterestRate);
 
     event InterestRateSet(uint256 newinterestRate);
 
     uint256 private constant DECIMALS = 1e18;
-    uint256 public s_interestRate = (5*DECIMALS)/1e8; // 5e8 or 0.000000005 or 0.0000005% is the initial interest rate.
+    uint256 public s_interestRate = (5 * DECIMALS) / 1e8; // 5e8 or 0.000000005 or 0.0000005% is the initial interest rate.
 
     bytes32 private constant MINT_AND_BURN_ROLE = keccak256(abi.encodePacked("MINT_AND_BURN_ROLE"));
     // bytes32 private constant DEFAULT_ADMIN_ROLE = keccak256(abi.encodePacked("DEFAULT_ADMIN_ROLE"));
@@ -36,7 +35,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
     mapping(address => uint256) private s_lastUpdatedTimeStampOfUser;
     // this will track the last time the user made a respective action to track their interest rate.
 
-    constructor() ERC20("Rebase Token", "RBT") Ownable (msg.sender) {
+    constructor() ERC20("Rebase Token", "RBT") Ownable(msg.sender) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MINT_AND_BURN_ROLE, msg.sender);
     }
@@ -55,7 +54,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
 
     // when deposit or redeems are done from the vault contract, mint and burn has to be called for the RT.
 
-    function mintRT(address _to, uint256 _amount, uint256 _userInterestRate) external onlyRole(MINT_AND_BURN_ROLE){
+    function mintRT(address _to, uint256 _amount, uint256 _userInterestRate) external onlyRole(MINT_AND_BURN_ROLE) {
         _mintAccruedInterest(_to);
         // this function means that user has to be minted any accrued interest everytime they perform action.
         // this minting must be done before new interest rates are given to the user.
@@ -65,7 +64,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
         // and RTs will be minted to the user accordingly.
     }
 
-    function burnRT(address _from, uint256 _amount) external onlyRole(MINT_AND_BURN_ROLE){
+    function burnRT(address _from, uint256 _amount) external onlyRole(MINT_AND_BURN_ROLE) {
         if (_amount == type(uint256).max) {
             _amount = balanceOf(_from);
         }
