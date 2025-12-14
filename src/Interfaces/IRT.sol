@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity ^0.8.20;
 
 interface IRebaseToken {
     function mintRT(address _to, uint256 _amount, uint256 _userInterestRate) external;

@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity ^0.8.20;
 
 import {TokenPool} from "../lib/ccip/contracts/src/v0.8/ccip/pools/TokenPool.sol"; // ccip@v2.9.0
 import {Pool} from "../lib/ccip/contracts/src/v0.8/ccip/libraries/Pool.sol";
@@ -9,7 +9,7 @@ import {IRebaseToken} from "./interfaces/IRT.sol";
 
 contract RebaseTokenPool is TokenPool {
     constructor(IERC20 _token, address[] memory _allowList, address _rmnProxy, address _router) 
-        TokenPool(_tokne, _allowlist, _rmnProxy, _router) {
+        TokenPool(_token, _allowList, _rmnProxy, _router) {
 
     }
 
@@ -29,8 +29,8 @@ contract RebaseTokenPool is TokenPool {
     {
         _validateLockOrBurn(lockOrBurnIn); 
         address receiver = abi.decode(lockOrBurnIn.receiver, (address));
-        uint256 userInterestRate = IRT(address(_token)).getUserInterestRate(receiver);
-        IRT(address(i_token)).burnRT(address(this), lockOrBurnIn.amount);
+        uint256 userInterestRate = IRebaseToken(address(i_token)).getUserInterestRate(receiver);
+        IRebaseToken(address(i_token)).burnRT(address(this), lockOrBurnIn.amount);
         lockOrBurnOut = Pool.LockOrBurnOutV1({
             destTokenAddress: getRemoteToken(lockOrBurnIn.remoteChainSelector),
             destPoolData: abi.encode(userInterestRate)
@@ -44,7 +44,7 @@ contract RebaseTokenPool is TokenPool {
         uint256 userInterestRate = abi.decode(releaseOrMintIn.sourcePoolData, (uint256));
         IRebaseToken(address(i_token)).mintRT(releaseOrMintIn.receiver, releaseOrMintIn.amount, userInterestRate);
 
-        return Pool.ReleaseOrMinOutV1({
+        return Pool.ReleaseOrMintOutV1({
             destinationAmount: releaseOrMintIn.amount
         });
     }

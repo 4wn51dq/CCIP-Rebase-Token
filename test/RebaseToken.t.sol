@@ -14,6 +14,8 @@ contract RebaseTokenTest is Test {
     RebaseToken rebaseToken;
     Vault vault;
 
+    uint256 constant INTEREST_RATE = 5e10;
+
     address public owner = makeAddr("OWNER");
     address public user = makeAddr("USER");
     address public user2 = makeAddr("USER2");
@@ -132,7 +134,7 @@ contract RebaseTokenTest is Test {
     function testCannotCallMintAndBurn() public {
         vm.prank(user);
         vm.expectPartialRevert(IAccessControl.AccessControlUnauthorizedAccount.selector);
-        rebaseToken.mintRT(user, 100);
+        rebaseToken.mintRT(user, 100, INTEREST_RATE);
         vm.expectPartialRevert(IAccessControl.AccessControlUnauthorizedAccount.selector);
         rebaseToken.burnRT(user, 100);
     }
@@ -149,7 +151,7 @@ contract RebaseTokenTest is Test {
         assertEq(rebaseToken.getPrincipleBalanceOfUser(user), amount);
     }
 
-    function testGetRebaseTokenAddress() public {
+    function testGetRebaseTokenAddress() public view {
         assertEq(address(rebaseToken), vault.getRebaseTokenAddress());
     }
 
