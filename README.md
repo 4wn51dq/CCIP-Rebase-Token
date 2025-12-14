@@ -8,3 +8,6 @@
    - every user's deposit undergoes an interest rate which would be based on a global interest rate of the protocol. 
    - The global interest rate can only decrease to incentivise/ reward early adopters. 
    
+4. Token pool for cross-chain liquidity 
+   - We deploy a custom token pool for RBT because the interest rate has to be passed with tokens across the chain.
+   - The custom token pool inherits from the token pool contract 

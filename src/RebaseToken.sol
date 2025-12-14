@@ -55,11 +55,11 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
 
     // when deposit or redeems are done from the vault contract, mint and burn has to be called for the RT.
 
-    function mintRT(address _to, uint256 _amount) external onlyRole(MINT_AND_BURN_ROLE){
+    function mintRT(address _to, uint256 _amount, uint256 _userInterestRate) external onlyRole(MINT_AND_BURN_ROLE){
         _mintAccruedInterest(_to);
         // this function means that user has to be minted any accrued interest everytime they perform action.
         // this minting must be done before new interest rates are given to the user.
-        s_usersInterestRate[_to] = s_interestRate;
+        s_usersInterestRate[_to] = _userInterestRate;
         _mint(_to, _amount);
         // when the user makes a deposit into the vault, that amount is under a particulat interest rate
         // and RTs will be minted to the user accordingly.

@@ -16,7 +16,7 @@ contract Vault {
     }
 
     function deposit() external payable {
-        i_rebaseToken.mintRT(msg.sender, msg.value);
+        i_rebaseToken.mintRT(msg.sender, msg.value, i_rebaseToken.getInterestRate());
         emit DepositMade(msg.sender, msg.value);
     }
 
