@@ -12,10 +12,12 @@ pragma solidity ^0.8.20;
 
 import {Test, console} from "../lib/forge-std/src/Test.sol";
 import {CCIPLocalSimulatorFork, Register} from "../lib/chainlink-local/src/ccip/CCIPLocalSimulatorFork.sol";
-import {RegistryModuleOwnerCustom} from "../lib/ccip//src/v0.8/ccip/tokenAdminRegistry/RegistryModuleCustomOwner.sol";
-import {TokenAdminRegistry} from "../lib/ccip//src/v0.8/ccip/tokenAdminRegistry/TokenAdminRegistry.sol";
+import {RegistryModuleOwnerCustom} from "../lib/ccip/contracts/src/v0.8/ccip/tokenAdminRegistry/RegistryModuleOwnerCustom.sol";
+import {TokenAdminRegistry} from "../lib/ccip/contracts/src/v0.8/ccip/tokenAdminRegistry/TokenAdminRegistry.sol";
 import {TokenPool} from "../lib/ccip/contracts/src/v0.8/ccip/pools/TokenPool.sol"; 
 import {RateLimiter} from "../lib/ccip/contracts/src/v0.8/ccip/libraries/RateLimiter.sol";
+import {Client} from "../lib/ccip/contracts/src/v0.8/ccip/libraries/Client.sol";
+import {IRouterClient} from "../lib/ccip/contracts/src/v0.8/ccip/interfaces/IRouterClient.sol";
 
 import {RebaseToken} from "../src/RebaseToken.sol";
 import {RebaseTokenPool} from "../src/RebaseTokenPool.sol";
@@ -28,10 +30,11 @@ import {IERC20} from "../lib/ccip/contracts/src/v0.8/vendor/openzeppelin-solidit
 contract CrossChainTest is Test {
 
     address private owner = makeAddr("OWNER");
-
+    address private user = makeAddr("USER");
 
     uint256 sepoliaFork;
     uint256 arbSepoliaFork;
+    uint256 private constant CUSTOM_GAS_LIMIT = 0;
 
     RebaseToken sepoliaToken;
     RebaseToken arbSepToken;
@@ -41,28 +44,74 @@ contract CrossChainTest is Test {
     RebaseTokenPool arbSepPool;
 
     Register.NetworkDetails sepoliaNetworkDetails;
-    Register.NetworkDetails arbSepNeworkDetails;
+    Register.NetworkDetails arbSepNetworkDetails;
 
     CCIPLocalSimulatorFork localSimulatorFork;
+
+    function bridgeTokens(
+        uint256 amountToBridge, uint256 localFork, uint256 remoteFork,
+        Register.NetworkDetails memory localNetworkDetails, Register.NetworkDetails memory remoteNetworkDetails,
+        RebaseToken localToken, RebaseToken remoteToken
+    ) public {
+        vm.selectFork(localFork);
+
+        Client.EVMTokenAmount[] memory _tokenAmounts = new Client.EVMTokenAmount[](1) ;
+        _tokenAmounts[0] = Client.EVMTokenAmount({
+            token: address(localToken),
+            amount: amountToBridge
+        });
+        Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
+            receiver: abi.encode(user),
+            data: "",
+            tokenAmounts: _tokenAmounts,
+            feeToken: localNetworkDetails.linkAddress, // LINK token
+            extraArgs: Client._argsToBytes(Client.EVMExtraArgsV2({
+                gasLimit: CUSTOM_GAS_LIMIT,
+                allowOutOfOrderExecution: true
+            }))
+        });
+        uint256 fee = IRouterClient(localNetworkDetails.routerAddress).getFee(remoteNetworkDetails.chainSelector, message);
+        localSimulatorFork.requestLinkFromFaucet(user, fee);
+        vm.prank(user);
+        IERC20(localNetworkDetails.linkAddress).approve(localNetworkDetails.routerAddress, fee);
+        vm.prank(user);
+        IERC20(address(localToken)).approve(localNetworkDetails.routerAddress, amountToBridge);
+
+        uint256 localBalanceBefore = localToken.balanceOf(user);
+        vm.prank(user);
+        IRouterClient(localNetworkDetails.routerAddress).ccipSend(remoteNetworkDetails.chainSelector, message);
+        uint256 localBalanceAfter = localToken.balanceOf(user);
+        assertEq(localBalanceBefore - localBalanceAfter, amountToBridge);
+        uint256 localUserInterestRate = localToken.getUserInterestRate(user);
+
+        vm.selectFork(remoteFork);
+        vm.warp(block.timestamp + 20 minutes);
+        uint256 remoteBalanceBefore = remoteToken.balanceOf(user);
+        localSimulatorFork.switchChainAndRouteMessage(remoteFork);
+        uint256 remoteBalanceAfter = remoteToken.balanceOf(user);
+        assertEq(remoteBalanceAfter, remoteBalanceBefore + amountToBridge);
+        uint256 remoteUserInterestRate = remoteToken.getUserInterestRate(user);
+        assertEq(remoteUserInterestRate, localUserInterestRate);
+    }
 
     function configureTokenPool(
         uint256 fork, address localPool, uint64 remoteChainSelector, address remotePool, address remoteTokenAddress
         ) public {
             vm.selectFork(fork);
             vm.prank(owner);
-            bytes[] memory remotePoolAddresses = new bytes[](1);
-            remotePoolAddresses[0] = abi.encode(remotePool);
+            bytes memory _remotePoolAddress = abi.encode(remotePool);
             TokenPool.ChainUpdate[] memory chainsToAdd = new TokenPool.ChainUpdate[](1);
             chainsToAdd[0] = TokenPool.ChainUpdate({
                 remoteChainSelector: remoteChainSelector,
-                remotePoolAddresses: remotePoolAddresses,
+                allowed: true,
+                remotePoolAddress: _remotePoolAddress,
                 remoteTokenAddress: abi.encode(remoteTokenAddress),
-                outboundRateLimiter: RateLimiter.Config({
+                outboundRateLimiterConfig: RateLimiter.Config({
                     isEnabled: false,
                     capacity: 0,
                     rate: 0
                 }),
-                inboundRateLimiter: RateLimiter.Config({
+                inboundRateLimiterConfig: RateLimiter.Config({
                     isEnabled: false,
                     capacity: 0,
                     rate: 0
@@ -86,7 +135,7 @@ contract CrossChainTest is Test {
         sepoliaToken = new RebaseToken();
         vault = new Vault(IRebaseToken(address(sepoliaToken)));
         sepoliaPool = new RebaseTokenPool(
-            IERC20(sepoliaToken), 
+            IERC20(address(sepoliaToken)), 
             new address[](0), 
             sepoliaNetworkDetails.rmnProxyAddress,
             sepoliaNetworkDetails.routerAddress 
@@ -94,13 +143,13 @@ contract CrossChainTest is Test {
         sepoliaToken.grantMintAndBurnRoles(address(vault));
         sepoliaToken.grantMintAndBurnRoles(address(sepoliaPool));
 
-        RegistryModuleCustomOwner(sepoliaNetworkDetails.tokenAdminRegistryAddress).registerAdminViaOwner(
+        RegistryModuleOwnerCustom(sepoliaNetworkDetails.tokenAdminRegistryAddress).registerAdminViaOwner(
             address(sepoliaToken)
         ); // register EOA as token admin to enable token in CCIP
-        TokeAdminRegistry(sepoliaNetworkDetails.tokenAdminRegistryAddress).acceptAdminRole(
+        TokenAdminRegistry(sepoliaNetworkDetails.tokenAdminRegistryAddress).acceptAdminRole(
             address(sepoliaToken)
         );
-        TokeAdminRegistry(sepoliaNetworkDetails.tokenAdminRegistryAddress).setPool();
+        TokenAdminRegistry(sepoliaNetworkDetails.tokenAdminRegistryAddress).setPool(address(sepoliaToken), address(sepoliaPool));
         configureTokenPool(
             sepoliaFork,
             address(sepoliaPool),
@@ -109,7 +158,7 @@ contract CrossChainTest is Test {
             address(arbSepToken)
         );
         configureTokenPool(
-            arbSepFork,
+            arbSepoliaFork,
             address(arbSepPool),
             sepoliaNetworkDetails.chainSelector,
             address(sepoliaPool),
@@ -121,14 +170,14 @@ contract CrossChainTest is Test {
         vm.selectFork(arbSepoliaFork);
         vm.prank(owner);
         arbSepToken = new RebaseToken();
-        arbSebPool = new RebaseTokenPool(
-            IERC20(arbSepToken),
+        arbSepPool = new RebaseTokenPool(
+            IERC20(address(arbSepToken)),
             new address[](0),
-            arbSepNeworkDetails.rmnProxyAddress,
-            arbSepNeworkDetails.routerAddress
+            arbSepNetworkDetails.rmnProxyAddress,
+            arbSepNetworkDetails.routerAddress
         );
         arbSepToken.grantMintAndBurnRoles(address(arbSepPool));
-        TokeAdminRegistry(sepoliaNetworkDetails.tokenAdminRegistryAddress).acceptAdminRole(
+        TokenAdminRegistry(sepoliaNetworkDetails.tokenAdminRegistryAddress).acceptAdminRole(
             address(arbSepToken)
         );
         vm.stopPrank();
