@@ -31,10 +31,15 @@ contract CrossChainTest is Test {
 
     address private owner = makeAddr("OWNER");
     address private user = makeAddr("USER");
+    address private constant sepoliaRouterAddress = 0xb83E47C2bC239B3bf370bc41e1459A34b41238D0;
+    address private constant arbSepRouterAddress = 0x2a9C5afB0d0e4BAb2BCdaE109EC4b0c4Be15a165;
+    address private constant sepoliaRmnProxy = 0x4e9935be37302B9C97Ff4ae6868F1b566ade26d2;
+    address private constant arbSepRmnProxy = 0x9527E2d01A3064ef6b50c1Da1C0cC523803BCFF2;
 
     uint256 sepoliaFork;
     uint256 arbSepoliaFork;
     uint256 private constant CUSTOM_GAS_LIMIT = 0;
+    uint256 private constant SEND_VALUE = 1e5;
 
     RebaseToken sepoliaToken;
     RebaseToken arbSepToken;
@@ -45,6 +50,12 @@ contract CrossChainTest is Test {
 
     Register.NetworkDetails sepoliaNetworkDetails;
     Register.NetworkDetails arbSepNetworkDetails;
+
+    TokenAdminRegistry tokenAdminRegistrySepolia;
+    TokenAdminRegistry tokenAdminRegistryArbitrum;
+
+    RegistryModuleOwnerCustom registryModuleOwnerCustomSepolia;
+    RegistryModuleOwnerCustom registryModuleOwnerCustomArbSepolia;
 
     CCIPLocalSimulatorFork localSimulatorFork;
 
@@ -130,8 +141,8 @@ contract CrossChainTest is Test {
         // ** it is the only contract allowed to live between the chains (or in both chains).
 
         // deploy and configure on sepolia (already selected)
-        vm.prank(owner);
-
+        sepoliaNetworkDetails = localSimulatorFork.getNetworkDetails(block.chainid);
+        vm.startPrank(owner);
         sepoliaToken = new RebaseToken();
         vault = new Vault(IRebaseToken(address(sepoliaToken)));
         sepoliaPool = new RebaseTokenPool(
@@ -143,13 +154,14 @@ contract CrossChainTest is Test {
         sepoliaToken.grantMintAndBurnRoles(address(vault));
         sepoliaToken.grantMintAndBurnRoles(address(sepoliaPool));
 
-        RegistryModuleOwnerCustom(sepoliaNetworkDetails.tokenAdminRegistryAddress).registerAdminViaOwner(
-            address(sepoliaToken)
-        ); // register EOA as token admin to enable token in CCIP
-        TokenAdminRegistry(sepoliaNetworkDetails.tokenAdminRegistryAddress).acceptAdminRole(
-            address(sepoliaToken)
-        );
-        TokenAdminRegistry(sepoliaNetworkDetails.tokenAdminRegistryAddress).setPool(address(sepoliaToken), address(sepoliaPool));
+        registryModuleOwnerCustomSepolia = 
+        RegistryModuleOwnerCustom(sepoliaNetworkDetails.tokenAdminRegistryAddress);
+        registryModuleOwnerCustomSepolia.registerAdminViaOwner(address(sepoliaToken)); // register EOA as token admin to enable token in CCIP
+
+        tokenAdminRegistrySepolia = TokenAdminRegistry(sepoliaNetworkDetails.tokenAdminRegistryAddress);
+        tokenAdminRegistrySepolia.acceptAdminRole(address(sepoliaToken));
+        
+        tokenAdminRegistrySepolia.setPool(address(sepoliaToken), address(sepoliaPool)); // link tokens to pool in the token admin registry on sepolia
         configureTokenPool(
             sepoliaFork,
             address(sepoliaPool),
@@ -168,7 +180,8 @@ contract CrossChainTest is Test {
         
         // deply and configure on arbsep
         vm.selectFork(arbSepoliaFork);
-        vm.prank(owner);
+        arbSepNetworkDetails = localSimulatorFork.getNetworkDetails(block.chainid);
+        vm.startPrank(owner);
         arbSepToken = new RebaseToken();
         arbSepPool = new RebaseTokenPool(
             IERC20(address(arbSepToken)),
@@ -177,9 +190,24 @@ contract CrossChainTest is Test {
             arbSepNetworkDetails.routerAddress
         );
         arbSepToken.grantMintAndBurnRoles(address(arbSepPool));
-        TokenAdminRegistry(sepoliaNetworkDetails.tokenAdminRegistryAddress).acceptAdminRole(
-            address(arbSepToken)
-        );
+        tokenAdminRegistryArbitrum = TokenAdminRegistry(sepoliaNetworkDetails.tokenAdminRegistryAddress);
+        tokenAdminRegistryArbitrum.acceptAdminRole(address(arbSepToken));
         vm.stopPrank();
     }
+
+    function testBridgeAllTokens() public {
+        vm.selectFork(sepoliaFork);
+        vm.deal(user, SEND_VALUE);
+        vm.prank(user);
+        Vault(payable(address(vault))).deposit{value: SEND_VALUE}();
+        assertEq(SEND_VALUE, sepoliaToken.balanceOf(user));
+
+        bridgeTokens(
+            SEND_VALUE, sepoliaFork, arbSepoliaFork, sepoliaNetworkDetails, arbSepNetworkDetails, sepoliaToken, arbSepToken
+        );
+    }
+
+    function testBridgeAllTokensBack() {}
+
+    function testBridgeTwice() {}
 }
