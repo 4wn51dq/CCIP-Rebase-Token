@@ -11,3 +11,22 @@
 4. Token pool for cross-chain liquidity 
    - We deploy a custom token pool for RBT because the interest rate has to be passed with tokens across the chain.
    - The custom token pool inherits from the token pool contract 
+
+# Off-chain protocol infrastructure
+
+1. Rust Blockchain indexer
+
+RPC Node (ETH / ARB / POLY)
+        ↓
+ Event Listener
+        ↓
+ State Reducer
+        ↓
+   Database
+        ↓
+  Read API / Metrics
+
+Contracts → Events → schema.sql → DB → Derived State
+
+2. Rust keeper / bots
+3. shared rust logic 
